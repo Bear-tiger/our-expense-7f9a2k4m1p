@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>我們的小帳本</title>
+  <style>
+    :root {
+      --primary: #F4A261;
+      --bg: #FFF9F2;
+      --text: #5D4037;
+      --btn-bg: #E9C46A;
+    }
+    body {
+      font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    h2 { text-align: center; color: var(--primary); margin-bottom: 20px; }
+    
+    /* 選擇身分畫面 */
+    #setup-screen { display: none; text-align: center; padding-top: 50px;}
+    .avatar-btn {
+      font-size: 20px;
+      padding: 15px 30px;
+      margin: 10px;
+      border: 2px solid var(--primary);
+      border-radius: 20px;
+      background-color: white;
+      color: var(--text);
+      cursor: pointer;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .avatar-btn span { font-size: 40px; margin-bottom: 10px; }
+    
+    /* 記帳畫面 */
+    #main-screen { display: none; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .user-badge { background: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; border: 1px solid var(--primary); cursor: pointer; }
+    
+    .form-group { margin-bottom: 15px; }
+    .form-row { display: flex; gap: 10px; }
+    .form-row .form-group { flex: 1; }
+    label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
+    input[type="number"], input[type="text"], input[type="date"], select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      font-size: 16px;
+      box-sizing: border-box;
+      background: white;
+    }
+    input[type="number"] { font-size: 24px; font-weight: bold; color: var(--primary); }
+    
+    .submit-btn {
+      width: 100%;
+      padding: 15px;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 18px;
+      font-weight: bold;
+      margin-top: 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .submit-btn:active { transform: scale(0.98); }
+    
+    #loading { display: none; text-align: center; color: var(--primary); font-weight: bold; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- 步驟一：選擇身分 (只有第一次會出現) -->
+    <div id="setup-screen">
+      <h2>請選擇你的專屬角色</h2>
+      <button class="avatar-btn" onclick="setUser('🐻 熊')">
+        <span>🐻</span> 熊
+      </button>
+      <button class="avatar-btn" onclick="setUser('🐯 虎')">
+        <span>🐯</span> 虎
+      </button>
+    </div>
+
+    <!-- 步驟二：記帳主畫面 -->
+    <div id="main-screen">
+      <div class="header">
+        <h2 style="margin:0;">我們的小帳本</h2>
+        <div class="user-badge" id="display-user" onclick="resetUser()" title="點擊切換身分"></div>
+      </div>
+
+      <form id="expense-form">
+        <!-- 日期欄位 -->
+        <div class="form-group">
+          <label for="date">日期</label>
+          <input type="date" id="date" required>
+        </div>
+
+        <div class="form-group">
+          <label for="amount">金額 (元)</label>
+          <input type="number" id="amount" inputmode="numeric" pattern="[0-9]*" required placeholder="0">
+        </div>
+        
+        <!-- 大類與細項連動 -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="main-category">大類</label>
+            <select id="main-category" required onchange="updateSubCategory()">
+              <!-- 選項由 JS 動態產生 -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="sub-category">細項</label>
+            <select id="sub-category" required>
+              <!-- 選項由 JS 動態產生 -->
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="note">備註 (選填)</label>
+          <input type="text" id="note" placeholder="例如：哪間餐廳、買了什麼...">
+        </div>
+
+        <button type="submit" class="submit-btn" id="submit-btn">記一筆！</button>
+        <div id="loading">傳送中，請稍候...</div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzfncd-mjFJxR7nqyfJNWr26Ycf5xp_ztUOF6wWrYRK8dktXlwPpf1RGHpAAkFHALSw/exec'; 
+
+    // === 【設定區】在這裡管理你的分類選單 ===
+    const categories = {
+      "餐飲": ["早餐", "午餐", "晚餐", "飲料", "點心", "食材"],
+      "交通": ["儲值", "計程車", "高鐵/台鐵"],
+      "購物": ["日用品", "服飾", "3C", "其他"],
+      "娛樂": ["電影/展覽", "訂閱(Netflix等)", "遊戲", "其他"],
+      "居家": ["水電瓦斯", "網路/電信", "其他"],
+      "旅遊": ["機票", "住宿", "其他"],
+      "其他": ["孝親", "稅", "醫療", "紅包/交際", "其他"]
+    };
+
+    // 初始化網頁
+    document.addEventListener("DOMContentLoaded", () => {
+      // 1. 設定預設日期為今天
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('date').value = today;
+
+      // 2. 初始化大類選單
+      const mainSelect = document.getElementById('main-category');
+      for (const main in categories) {
+        const option = document.createElement('option');
+        option.value = main;
+        option.text = main;
+        mainSelect.appendChild(option);
+      }
+      
+      // 3. 觸發一次細項更新，載入預設的細項
+      updateSubCategory();
+
+      // 4. 檢查身分
+      const savedUser = localStorage.getItem('expense_user');
+      if (savedUser) {
+        showMainScreen(savedUser);
+      } else {
+        document.getElementById('setup-screen').style.display = 'block';
+      }
+    });
+
+    // 連動選單：當大類改變時，更新細項選單
+    function updateSubCategory() {
+      const mainSelect = document.getElementById('main-category');
+      const subSelect = document.getElementById('sub-category');
+      const selectedMain = mainSelect.value;
+      
+      // 清空舊的細項
+      subSelect.innerHTML = '';
+      
+      // 加入新的細項
+      categories[selectedMain].forEach(sub => {
+        const option = document.createElement('option');
+        option.value = sub;
+        option.text = sub;
+        subSelect.appendChild(option);
+      });
+    }
+
+    function setUser(userName) {
+      localStorage.setItem('expense_user', userName);
+      showMainScreen(userName);
+    }
+
+    function showMainScreen(userName) {
+      document.getElementById('setup-screen').style.display = 'none';
+      document.getElementById('main-screen').style.display = 'block';
+      document.getElementById('display-user').innerText = userName;
+    }
+
+    // 重新選擇身分 (點擊右上角徽章觸發)
+    function resetUser() {
+      if(confirm('要切換記帳角色嗎？')) {
+        localStorage.removeItem('expense_user');
+        document.getElementById('main-screen').style.display = 'none';
+        document.getElementById('setup-screen').style.display = 'block';
+      }
+    }
+
+    // 表單送出事件
+    document.getElementById('expense-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const submitBtn = document.getElementById('submit-btn');
+      const loading = document.getElementById('loading');
+      
+      submitBtn.style.display = 'none';
+      loading.style.display = 'block';
+
+      // 整理要送出的資料，符合你要求的新欄位對應
+      const data = {
+        date: document.getElementById('date').value,
+        user: localStorage.getItem('expense_user'),
+        mainCategory: document.getElementById('main-category').value,
+        subCategory: document.getElementById('sub-category').value,
+        amount: document.getElementById('amount').value,
+        note: document.getElementById('note').value
+      };
+
+      fetch(GAS_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify(data)
+      })
+      .then(response => response.json())
+      .then(result => {
+        if(result.status === 'success') {
+          alert('記帳成功！');
+          // 記帳後清空金額與備註，保留日期與分類方便連續記帳
+          document.getElementById('amount').value = '';
+          document.getElementById('note').value = '';
+        } else {
+          alert('發生錯誤：' + result.message);
+        }
+      })
+      .catch(error => {
+        alert('網路錯誤或 API 網址不正確，請稍後再試。');
+        console.error(error);
+      })
+      .finally(() => {
+        submitBtn.style.display = 'block';
+        loading.style.display = 'none';
+      });
+    });
+  </script>
+</body>
+</html>
