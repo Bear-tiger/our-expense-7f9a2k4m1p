@@ -4,12 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>我們的小帳本</title>
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="icon" href="icon.png">
   <style>
     :root {
       --primary: #F4A261;
       --bg: #FFF9F2;
       --text: #5D4037;
       --btn-bg: #E9C46A;
+      --border: #E0E0E0;
     }
     body {
       font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
@@ -30,7 +33,6 @@
     }
     h2 { text-align: center; color: var(--primary); margin-bottom: 20px; }
     
-    /* 選擇身分畫面 */
     #setup-screen { display: none; text-align: center; padding-top: 50px;}
     .avatar-btn {
       font-size: 20px;
@@ -47,7 +49,6 @@
     }
     .avatar-btn span { font-size: 40px; margin-bottom: 10px; }
     
-    /* 記帳畫面 */
     #main-screen { display: none; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .user-badge { background: white; padding: 5px 15px; border-radius: 20px; font-weight: bold; border: 1px solid var(--primary); cursor: pointer; }
@@ -83,13 +84,34 @@
     .submit-btn:active { transform: scale(0.98); }
     
     #loading { display: none; text-align: center; color: var(--primary); font-weight: bold; margin-top: 10px; }
+
+    /* 統計區塊與月份切換 UI */
+    .history-container { margin-top: 30px; border-top: 2px dashed #DCC0A6; padding-top: 20px; }
+    .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    .month-nav { display: flex; align-items: center; gap: 8px; }
+    .month-nav-btn { background: none; border: none; font-size: 18px; color: var(--primary); cursor: pointer; padding: 0 5px; font-weight: bold; }
+    .month-nav h3 { margin: 0; font-size: 16px; color: var(--text); min-width: 90px; text-align: center; }
+    .refresh-btn { background: none; border: 1px solid var(--primary); color: var(--primary); border-radius: 5px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+    
+    /* 總計與分類卡片 */
+    .monthly-summary-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; text-align: center; border: 2px solid var(--primary); box-shadow: 0 2px 8px rgba(244,162,97,0.2); }
+    .grand-total-title { font-size: 14px; color: #666; font-weight: bold; }
+    .grand-total-amount { font-size: 32px; font-weight: bold; color: var(--primary); margin: 5px 0; }
+    .user-breakdown { display: flex; justify-content: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    .user-badge-small { background: var(--bg); padding: 4px 10px; border-radius: 15px; font-size: 12px; border: 1px solid #DCC0A6; font-weight: bold; }
+
+    .history-item { background: white; border-radius: 10px; padding: 12px; margin-bottom: 10px; display: flex; flex-direction: column; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .cat-main-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .cat-name { font-size: 16px; font-weight: bold; }
+    .cat-total { font-size: 18px; font-weight: bold; color: var(--primary); }
+    .cat-sub-row { display: flex; gap: 15px; font-size: 13px; color: #666; border-top: 1px dashed #eee; padding-top: 8px; }
+    .cat-user-amt { font-weight: bold; color: var(--text); }
   </style>
 </head>
 <body>
 
   <div class="container">
     
-    <!-- 步驟一：選擇身分 (只有第一次會出現) -->
     <div id="setup-screen">
       <h2>請選擇你的專屬角色</h2>
       <button class="avatar-btn" onclick="setUser('🐻 熊')">
@@ -100,7 +122,6 @@
       </button>
     </div>
 
-    <!-- 步驟二：記帳主畫面 -->
     <div id="main-screen">
       <div class="header">
         <h2 style="margin:0;">我們的小帳本</h2>
@@ -108,7 +129,6 @@
       </div>
 
       <form id="expense-form">
-        <!-- 日期欄位 -->
         <div class="form-group">
           <label for="date">日期</label>
           <input type="date" id="date" required>
@@ -119,18 +139,15 @@
           <input type="number" id="amount" inputmode="numeric" pattern="[0-9]*" required placeholder="0">
         </div>
         
-        <!-- 大類與細項連動 -->
         <div class="form-row">
           <div class="form-group">
             <label for="main-category">大類</label>
             <select id="main-category" required onchange="updateSubCategory()">
-              <!-- 選項由 JS 動態產生 -->
             </select>
           </div>
           <div class="form-group">
             <label for="sub-category">細項</label>
             <select id="sub-category" required>
-              <!-- 選項由 JS 動態產生 -->
             </select>
           </div>
         </div>
@@ -143,31 +160,47 @@
         <button type="submit" class="submit-btn" id="submit-btn">記一筆！</button>
         <div id="loading">傳送中，請稍候...</div>
       </form>
+
+      <!-- 統計與月份切換區塊 -->
+      <div class="history-container">
+        <div class="history-header">
+          <div class="month-nav">
+            <button class="month-nav-btn" onclick="changeMonth(-1)">◀</button>
+            <h3 id="monthly-title">本月統計</h3>
+            <button class="month-nav-btn" onclick="changeMonth(1)">▶</button>
+          </div>
+          <!-- 強制重新整理按鈕 -->
+          <button class="refresh-btn" onclick="loadMonthlyStats(true)">重新整理</button>
+        </div>
+        <div id="history-loading" style="display: none; text-align: center; color: #888; font-size: 12px; margin-bottom: 10px;">資料載入中...</div>
+        <div id="history-list">
+          <!-- 統計結果 -->
+        </div>
+      </div>
     </div>
   </div>
 
   <script>
+    // 你的專屬 GAS API 網址
     const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzfncd-mjFJxR7nqyfJNWr26Ycf5xp_ztUOF6wWrYRK8dktXlwPpf1RGHpAAkFHALSw/exec'; 
 
-    // === 【設定區】在這裡管理你的分類選單 ===
     const categories = {
       "餐飲": ["早餐", "午餐", "晚餐", "飲料", "點心", "食材"],
-      "交通": ["儲值", "計程車", "高鐵/台鐵"],
-      "購物": ["日用品", "服飾", "3C", "其他"],
-      "娛樂": ["電影/展覽", "訂閱(Netflix等)", "遊戲", "模型", "吉他課", "其他"],
-      "運動": ["教練課", "桌球課"],
-      "居家": ["水電瓦斯", "網路/電信", "其他"],
-      "旅遊": ["機票", "住宿", "其他"],
-      "其他": ["孝親", "稅", "醫療", "紅包/交際", "其他"]
+      "交通": ["捷運/公車", "計程車", "加油", "停車", "高鐵/台鐵"],
+      "購物": ["日用品", "服飾", "保養/化妝", "3C", "其他"],
+      "娛樂": ["電影/展覽", "訂閱(Netflix等)", "遊戲", "旅遊"],
+      "居家": ["房租/房貸", "水電瓦斯", "網路/電信", "家具"],
+      "其他": ["醫療", "紅包/交際", "未分類"]
     };
 
-    // 初始化網頁
+    // 全域變數：追蹤當前查看的月份，以及暫存的所有資料
+    let currentViewDate = new Date();
+    let allExpenseData = null; 
+
     document.addEventListener("DOMContentLoaded", () => {
-      // 1. 設定預設日期為今天
       const today = new Date().toISOString().split('T')[0];
       document.getElementById('date').value = today;
 
-      // 2. 初始化大類選單
       const mainSelect = document.getElementById('main-category');
       for (const main in categories) {
         const option = document.createElement('option');
@@ -175,11 +208,8 @@
         option.text = main;
         mainSelect.appendChild(option);
       }
-      
-      // 3. 觸發一次細項更新，載入預設的細項
       updateSubCategory();
 
-      // 4. 檢查身分
       const savedUser = localStorage.getItem('expense_user');
       if (savedUser) {
         showMainScreen(savedUser);
@@ -188,16 +218,11 @@
       }
     });
 
-    // 連動選單：當大類改變時，更新細項選單
     function updateSubCategory() {
       const mainSelect = document.getElementById('main-category');
       const subSelect = document.getElementById('sub-category');
       const selectedMain = mainSelect.value;
-      
-      // 清空舊的細項
       subSelect.innerHTML = '';
-      
-      // 加入新的細項
       categories[selectedMain].forEach(sub => {
         const option = document.createElement('option');
         option.value = sub;
@@ -215,9 +240,11 @@
       document.getElementById('setup-screen').style.display = 'none';
       document.getElementById('main-screen').style.display = 'block';
       document.getElementById('display-user').innerText = userName;
+      
+      // 載入資料
+      loadMonthlyStats();
     }
 
-    // 重新選擇身分 (點擊右上角徽章觸發)
     function resetUser() {
       if(confirm('要切換記帳角色嗎？')) {
         localStorage.removeItem('expense_user');
@@ -226,7 +253,125 @@
       }
     }
 
-    // 表單送出事件
+    // 切換月份函式
+    function changeMonth(delta) {
+      // 先將日期設為 1 號，避免 31 號切換到沒有 31 號的月份時發生跳月錯誤
+      currentViewDate.setDate(1); 
+      currentViewDate.setMonth(currentViewDate.getMonth() + delta);
+      // 因為資料已經在快取裡了，直接重新渲染畫面即可
+      renderStats(); 
+    }
+
+    // 負責拉取資料 (forceRefresh = true 時才會重新連線 GAS)
+    function loadMonthlyStats(forceRefresh = false) {
+      const listContainer = document.getElementById('history-list');
+      const loadingText = document.getElementById('history-loading');
+      
+      // 如果還沒載入過資料，或是強制要求更新
+      if (!allExpenseData || forceRefresh) {
+        listContainer.innerHTML = '';
+        loadingText.style.display = 'block';
+
+        fetch(GAS_API_URL)
+          .then(response => response.json())
+          .then(result => {
+            if(result.status === 'success') {
+              allExpenseData = result.data; // 把資料存進快取
+              renderStats();                // 開始渲染畫面
+            }
+          })
+          .catch(err => {
+            listContainer.innerHTML = '<div style="text-align:center; color:red; font-size:12px;">讀取失敗，請檢查網路連線。</div>';
+          })
+          .finally(() => {
+            loadingText.style.display = 'none';
+          });
+      } else {
+        // 如果已經有資料，直接渲染
+        renderStats();
+      }
+    }
+
+    // 負責把資料畫到螢幕上
+    function renderStats() {
+      const listContainer = document.getElementById('history-list');
+      const title = document.getElementById('monthly-title');
+      
+      const targetYear = currentViewDate.getFullYear();
+      const targetMonth = currentViewDate.getMonth() + 1;
+      
+      // 判斷是否為「現在這個月」，調整標題顯示方式
+      const today = new Date();
+      if (targetYear === today.getFullYear() && targetMonth === (today.getMonth() + 1)) {
+        title.innerText = `${targetMonth}月 統計`;
+      } else {
+        title.innerText = `${targetYear}年 ${targetMonth}月`;
+      }
+
+      let grandTotal = 0;
+      const userTotals = {};
+      const categoryStats = {}; 
+
+      // 從快取的 allExpenseData 中篩選目標月份
+      allExpenseData.forEach(item => {
+        const dateObj = new Date(item.date);
+        if (dateObj.getFullYear() === targetYear && (dateObj.getMonth() + 1) === targetMonth) {
+          const cat = item.mainCategory;
+          const user = item.user;
+          const amount = Number(item.amount) || 0;
+          
+          if (!categoryStats[cat]) { categoryStats[cat] = { total: 0 }; }
+          if (!categoryStats[cat][user]) { categoryStats[cat][user] = 0; }
+          if (!userTotals[user]) { userTotals[user] = 0; }
+          
+          categoryStats[cat].total += amount;
+          categoryStats[cat][user] += amount;
+          grandTotal += amount;
+          userTotals[user] += amount;
+        }
+      });
+
+      if (grandTotal === 0) {
+        listContainer.innerHTML = '<div style="text-align:center; color:#888; font-size:14px; margin-top:20px;">這個月沒有記帳紀錄喔！</div>';
+        return;
+      }
+
+      let html = `
+        <div class="monthly-summary-card">
+          <div class="grand-total-title">該月總計</div>
+          <div class="grand-total-amount">$${grandTotal.toLocaleString()}</div>
+          <div class="user-breakdown">
+      `;
+      
+      for (const [u, amt] of Object.entries(userTotals)) {
+        html += `<span class="user-badge-small">${u} $${amt.toLocaleString()}</span>`;
+      }
+      html += `</div></div>`;
+
+      const sortedCategories = Object.entries(categoryStats).sort((a, b) => b[1].total - a[1].total);
+
+      sortedCategories.forEach(([cat, data]) => {
+        html += `
+          <div class="history-item">
+            <div class="cat-main-row">
+              <div class="cat-name">${cat}</div>
+              <div class="cat-total">$${data.total.toLocaleString()}</div>
+            </div>
+            <div class="cat-sub-row">
+        `;
+        
+        const users = Object.keys(data).filter(k => k !== 'total');
+        users.forEach(u => {
+           html += `<div>${u}: <span class="cat-user-amt">$${data[u].toLocaleString()}</span></div>`;
+        });
+
+        html += `</div></div>`;
+      });
+
+      listContainer.innerHTML = html;
+    }
+
+    // 記帳送出
     document.getElementById('expense-form').addEventListener('submit', function(e) {
       e.preventDefault();
       
@@ -236,7 +381,6 @@
       submitBtn.style.display = 'none';
       loading.style.display = 'block';
 
-      // 整理要送出的資料，符合你要求的新欄位對應
       const data = {
         date: document.getElementById('date').value,
         user: localStorage.getItem('expense_user'),
@@ -248,24 +392,25 @@
 
       fetch(GAS_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(data)
       })
       .then(response => response.json())
       .then(result => {
         if(result.status === 'success') {
-          alert('記帳成功！');
-          // 記帳後清空金額與備註，保留日期與分類方便連續記帳
           document.getElementById('amount').value = '';
           document.getElementById('note').value = '';
+          document.getElementById('date').value = new Date().toISOString().split('T')[0];
+          
+          // 記帳成功後，強制更新伺服器資料並跳回當月
+          currentViewDate = new Date(); 
+          loadMonthlyStats(true); 
         } else {
           alert('發生錯誤：' + result.message);
         }
       })
       .catch(error => {
-        alert('網路錯誤或 API 網址不正確，請稍後再試。');
+        alert('網路錯誤，請稍後再試。');
         console.error(error);
       })
       .finally(() => {
